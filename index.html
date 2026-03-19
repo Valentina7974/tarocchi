@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tarocchi - Lettura a Tre Carte</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Georgia', serif;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px;
+}
+.container {
+  background: rgba(0,0,0,0.6);
+  border: 2px solid #d4af37;
+  border-radius: 15px;
+  padding: 30px 20px;
+  max-width: 600px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+}
+h1 { color: #d4af37; margin-bottom: 8px; font-size: 26px; letter-spacing: 2px; }
+.subtitle { color: #999; font-size: 13px; margin-bottom: 24px; font-style: italic; }
+
+/* PHASE SCREENS */
+.phase { display: none; }
+.phase.active { display: block; }
+
+/* SHUFFLE PHASE */
+.shuffle-btn {
+  background: #d4af37; color: #1a1a2e;
+  border: none; padding: 16px 40px;
+  font-size: 17px; font-weight: bold;
+  border-radius: 8px; cursor: pointer;
+  transition: all 0.3s;
+  margin-top: 10px;
+}
+.shuffle-btn:hover { background: #e8c547; transform: scale(1.05); }
+.shuffle-hint { color: #888; font-size: 13px; margin-top: 16px; font-style: italic; }
+
+/* DECK PHASE */
+.deck-instructions {
+  color: #d4af37; font-size: 14px; margin-bottom: 20px;
+  letter-spacing: 1px;
+}
+.deck-counter { color: #999; font-size: 13px; margin-bottom: 16px; }
+.deck-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 20px;
+}
+@media (max-width: 400px) { .deck-grid { grid-template-columns: repeat(4, 1fr); } }
+
+.deck-card {
+  aspect-ratio: 2/3;
+  border-radius: 6px;
+  border: 1px solid #d4af37;
+  background: linear-gradient(135deg, #2a1a4e, #1a1a2e);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.deck-card::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(212,175,55,0.3);
+  border-radius: 4px;
+}
+.deck-card:hover:not(.selected):not(.disabled) {
+  transform: translateY(-4px) scale(1.05);
+  box-shadow: 0 6px 20px rgba(212,175,55,0.4);
+}
+.deck-card.selected {
+  background: linear-gradient(135deg, #4a3a0e, #3a2a0e);
+  border-color: #ffdd66;
+  box-shadow: 0 0 12px rgba(212,175,55,0.7);
+  cursor: default;
+}
+.deck-card.disabled { opacity: 0.4; cursor: default; }
+
+/* SELECTED CARDS */
+.selected-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.selected-slot {
+  flex: 1;
+  max-width: 100px;
+  aspect-ratio: 2/3;
+  border-radius: 8px;
+  border: 2px dashed rgba(212,175,55,0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #666;
+  transition: all 0.3s;
+}
+.selected-slot.filled {
+  border-color: #d4af37;
+  background: linear-gradient(135deg, #2a1a4e, #1a1a2e);
+  color: #d4af37;
+  font-size: 20px;
+}
+.slot-label { font-size: 10px; color: #888; margin-top: 4px; }
+
+.reveal-btn {
+  background: #d4af37; color: #1a1a2e;
+  border: none; padding: 14px 36px;
+  font-size: 16px; font-weight: bold;
+  border-radius: 8px; cursor: pointer;
+  transition: all 0.3s;
+  display: none;
+}
+.reveal-btn.visible { display: inline-block; }
+.reveal-btn:hover { background: #e8c547; transform: scale(1.05); }
+
+/* READING PHASE */
+.cards-container {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 20px 0;
+}
+@media (max-width: 480px) { .cards-container { grid-template-columns: 1fr; } }
+
+.card-slot {
+  background: rgba(50,50,50,0.8);
+  border: 2px solid #d4af37;
+  border-radius: 10px;
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.5s, transform 0.5s;
+}
+.card-slot.visible { opacity: 1; transform: translateY(0); }
+.card-pos { color: #d4af37; font-weight: bold; font-size: 13px; margin-bottom: 6px; }
+.card-name { font-size: 17px; color: #d4af37; font-weight: bold; margin-bottom: 4px; }
+.card-orientation { font-size: 12px; color: #999; font-style: italic; margin-bottom: 8px; }
+.card-desc { color: #ccc; font-size: 12px; line-height: 1.6; }
+
+.interpretation {
+  display: none;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 2px solid #d4af37;
+}
+.interpretation h2 { color: #d4af37; margin-bottom: 16px; font-size: 19px; }
+.interpretation-text { color: #ddd; line-height: 1.9; font-size: 14px; text-align: justify; }
+
+.reset-btn {
+  background: transparent; color: #d4af37;
+  border: 1px solid #d4af37; padding: 10px 28px;
+  font-size: 14px; border-radius: 8px; cursor: pointer;
+  margin-top: 24px; transition: all 0.3s;
+}
+.reset-btn:hover { background: rgba(212,175,55,0.1); }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>✦ Lettura a Tre Carte ✦</h1>
+  <p class="subtitle">Passato · Presente · Futuro</p>
+
+  <!-- PHASE 1: SHUFFLE -->
+  <div class="phase active" id="phase-shuffle">
+    <p style="color:#bbb; font-size:14px; margin-bottom:24px; line-height:1.8;">
+      Concentrati sulla tua domanda.<br>Quando sei pronta, mescola le carte.
+    </p>
+    <button class="shuffle-btn" onclick="startShuffle()">🔀 Mescola le Carte</button>
+    <p class="shuffle-hint">Tieni in mente la tua intenzione</p>
+  </div>
+
+  <!-- PHASE 2: CHOOSE -->
+  <div class="phase" id="phase-choose">
+    <p class="deck-instructions">✨ Scegli tre carte dal mazzo ✨</p>
+
+    <div class="selected-row">
+      <div class="selected-slot" id="slot-0"><span>?</span><span class="slot-label">Passato</span></div>
+      <div class="selected-slot" id="slot-1"><span>?</span><span class="slot-label">Presente</span></div>
+      <div class="selected-slot" id="slot-2"><span>?</span><span class="slot-label">Futuro</span></div>
+    </div>
+    <p class="deck-counter" id="deck-counter">Carte selezionate: 0 / 3</p>
+
+    <div class="deck-grid" id="deck-grid"></div>
+
+    <button class="reveal-btn" id="reveal-btn" onclick="revealCards()">🔮 Rivela la Lettura</button>
+  </div>
+
+  <!-- PHASE 3: READING -->
+  <div class="phase" id="phase-reading">
+    <div class="cards-container" id="cards-container"></div>
+    <div class="interpretation" id="interpretation">
+      <h2>Lettura Combinata</h2>
+      <div class="interpretation-text" id="interpretation-text"></div>
+    </div>
+    <button class="reset-btn" onclick="resetAll()">↺ Nuova Lettura</button>
+  </div>
+</div>
+
+<script>
+const ARCANI = [
+  { name:"Il Mago", e:"🎩",
+    up:"Il Mago è il maestro della manifestazione conscia. Hai accesso a tutti gli strumenti necessari — intelligenza, creatività, volontà — e la capacità di orchestrarli. Oggi è il giorno per agire con intenzione precisa.",
+    rev:"Frode, confusione mentale e cattivo uso delle risorse. Disconnessione tra ciò che possiedi e ciò che riesci a manifestare. Indecisione che blocca il potenziale." },
+  { name:"La Papessa", e:"📖",
+    up:"Saggezza intuitiva che risiede nel silenzio. Ascolta più di quanto parli — c'è una verità nascosta che emerge solo se rimani abbastanza quieta da sentirla.",
+    rev:"Stai ignorando i tuoi istinti o qualcuno ti tiene all'oscuro. Disconnessione tra razionalità e sensazione profonda." },
+  { name:"L'Imperatrice", e:"🌸",
+    up:"Femminilità generativa e fertile. Le tue energie creative sono al massimo. È il permesso di goderti ciò che crei, di nutrire e far fiorire.",
+    rev:"Blocco creativo o dipendenza eccessiva dalla validazione altrui. Qualcosa che dovrebbe nascere rimane bloccato." },
+  { name:"L'Imperatore", e:"👑",
+    up:"Potere strutturato e autorità consapevole. Prendi il comando: stabilisci confini chiari, costruisci qualcosa di duraturo. Non aggressività, ma autorevolezza calma.",
+    rev:"Abuso di potere o perdita totale di controllo. Fragilità nascosta dietro una facciata rigida." },
+  { name:"Il Papa", e:"⛪",
+    up:"Ricerca di significato e connessione con qualcosa di più grande. Cerca consiglio da chi è più saggio, o inizia a trasmettere ciò che sai.",
+    rev:"Dogmatismo cieco o falsa spiritualità. Perdita di fede nel senso più ampio." },
+  { name:"Gli Amanti", e:"💞",
+    up:"Allineamento profondo tra chi sei e ciò che scegli. Vulnerabilità autentica, connessione senza maschere. Segui il cuore più che la logica.",
+    rev:"Conflitto interiore, scelta sbagliata per le ragioni sbagliate. Hai smesso di essere autentica." },
+  { name:"Il Carro", e:"🏇",
+    up:"Movimento consapevole verso l'obiettivo. Hai le redini, conosci il percorso. Se sei stata in stallo, oggi è il momento di accelerare.",
+    rev:"Perdita di direzione o impulsi incontrollati che ti muovono in cerchio. Il progresso è illusorio." },
+  { name:"La Forza", e:"🦁",
+    up:"Potere interiore che domina non con violenza ma con grazia e pazienza. Hai più forza di quanto credi, e quella forza è migliore quando usata con gentilezza.",
+    rev:"Perdita di fiducia, cedimento di fronte alle sfide. Stai reprimendo la tua vera forza." },
+  { name:"L'Eremita", e:"🕯️",
+    up:"Ritiro deliberato per trovare risposte che solo il silenzio fornisce. Elimina il rumore e ascolta quella voce interiore che sa.",
+    rev:"Isolamento non scelto che fa male. Stai evitando consapevolmente di vedere la verità dentro di te." },
+  { name:"La Ruota", e:"☸️",
+    up:"La vita si muove in cicli e il cambiamento è l'unica costante. Un momento di transizione: accetta ciò che viene sapendo che tutto passa.",
+    rev:"Resistenza al cambiamento o sensazione di essere intrappolata in cicli negativi che non si rompono." },
+  { name:"La Giustizia", e:"⚖️",
+    up:"Equilibrio e conseguenze logiche delle azioni. Le cose trovano il loro livello corretto. Se hai agito con integrità, sarai ricompensata.",
+    rev:"Ingiustizia o distorsione della verità. Stai evitando responsabilità, o la verità viene nascosta." },
+  { name:"L'Appeso", e:"🙃",
+    up:"Sospensione consapevole prima della trasformazione. Cambia prospettiva radicalmente — il disagio è temporaneo e necessario.",
+    rev:"Resistenza alla trasformazione o sacrificio inutile. Il tempo di sospensione è finito ma rimani bloccata." },
+  { name:"La Morte", e:"🌑",
+    up:"Trasformazione inevitabile. La fine di un ciclo che deve terminare perché uno nuovo inizi. Non è punizione: è rinnovamento necessario.",
+    rev:"Rifiuto della fine inevitabile. Sei ancora attaccata a qualcosa di già morto, e questo impedisce il nuovo." },
+  { name:"La Temperanza", e:"🌊",
+    up:"Equilibrio armonico e integrazione di forze opposte. Trova il giusto mezzo, integra le parti in conflitto. Guarigione attraverso l'equilibrio.",
+    rev:"Squilibrio estremo, eccessi che danneggiano. Le tue parti non riescono a comunicare." },
+  { name:"Il Diavolo", e:"🔗",
+    up:"Piacere, ossessione e catene autoimposte. La domanda è: scegli consapevolmente questo legame, o fingi di non avere scelta?",
+    rev:"Liberazione dalle catene. Stai iniziando a rompere i pattern che ti legavano." },
+  { name:"La Torre", e:"⚡",
+    up:"Crollo della struttura falsa. Una verità si rivela con violenza. È difficile ma anche liberatorio: ciò che cade non era reale.",
+    rev:"Il crollo è imminente ma rimandato. Le crepe sono visibili ma non affrontate." },
+  { name:"La Stella", e:"⭐",
+    up:"Speranza consapevole e guida interiore. Ti riconnetti con ciò che ha significato profondo. Se sei stata perduta, oggi ritrovi l'orientamento.",
+    rev:"Perdita di speranza e di direzione. Vedi solo il buio e hai dimenticato che la luce esiste." },
+  { name:"La Luna", e:"🌙",
+    up:"Illusione e subconscio. Non tutto è come appare. Ascolta l'intuito, ma non ignorare la realtà pratica.",
+    rev:"Chiarezza dopo la confusione. Qualcosa che era nascosto diventa finalmente visibile." },
+  { name:"Il Sole", e:"☀️",
+    up:"Gioia consapevole e vittoria luminosa. Nulla è nascosto, tutto è chiaro. Se c'è stata sofferenza, finisce oggi.",
+    rev:"Temporaneo oscuramento. Il sole è coperto da nuvole, ma sappi che passeranno." },
+  { name:"Il Giudizio", e:"🎺",
+    up:"Risveglio e chiamata a uno scopo più grande. La tua anima ti chiama a confrontarti con chi sei veramente.",
+    rev:"Rifiuto della chiamata o auto-condanna non costruttiva. La voce che ti chiama viene ignorata." },
+  { name:"Il Mondo", e:"🌍",
+    up:"Completamento e integrazione. Un ciclo si chiude con successo e un nuovo inizio consapevole è alle porte.",
+    rev:"Incompletezza. Qualcosa rimane irrisolto — il lavoro non è ancora finito." }
+];
+
+let audioCtx = null;
+let shuffledDeck = [];
+let selectedCards = [];
+let selectedIndices = [];
+
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playShuffleSound() {
+  const ctx = getAudio();
+  for (let i = 0; i < 8; i++) {
+    setTimeout(() => {
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.07, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let j = 0; j < d.length; j++) d[j] = (Math.random()*2-1)*(1-j/d.length);
+      const src = ctx.createBufferSource();
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass'; f.frequency.value = 1000 + Math.random()*1000;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.15, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.07);
+      src.buffer = buf; src.connect(f); f.connect(g); g.connect(ctx.destination);
+      src.start();
+    }, i * 100);
+  }
+}
+
+function playFlipSound(delay=0) {
+  setTimeout(() => {
+    const ctx = getAudio();
+    const buf = ctx.createBuffer(1, ctx.sampleRate*0.12, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let j = 0; j < d.length; j++) d[j] = (Math.random()*2-1)*Math.pow(1-j/d.length,2);
+    const src = ctx.createBufferSource();
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 900;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.22, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.12);
+    src.buffer = buf; src.connect(f); f.connect(g); g.connect(ctx.destination);
+    src.start();
+  }, delay);
+}
+
+function playMysticSound() {
+  const ctx = getAudio();
+  [261.63, 329.63, 392.00, 523.25].forEach((freq, i) => {
+    setTimeout(() => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(freq*1.02, ctx.currentTime+0.6);
+      g.gain.setValueAtTime(0, ctx.currentTime);
+      g.gain.linearRampToValueAtTime(0.12, ctx.currentTime+0.1);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.8);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(); osc.stop(ctx.currentTime+0.8);
+    }, i * 180);
+  });
+}
+
+function showPhase(id) {
+  document.querySelectorAll('.phase').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function startShuffle() {
+  playShuffleSound();
+  const btn = document.querySelector('.shuffle-btn');
+  btn.textContent = '🔀 Mescolando...';
+  btn.disabled = true;
+
+  setTimeout(() => {
+    shuffledDeck = [...ARCANI].sort(() => Math.random()-0.5).map(c => ({
+      ...c,
+      reversed: Math.random() > 0.5
+    }));
+    selectedCards = [];
+    selectedIndices = [];
+    buildDeck();
+    showPhase('phase-choose');
+  }, 900);
+}
+
+function buildDeck() {
+  const grid = document.getElementById('deck-grid');
+  grid.innerHTML = '';
+  shuffledDeck.forEach((_, i) => {
+    const el = document.createElement('div');
+    el.className = 'deck-card';
+    el.innerHTML = '✦';
+    el.onclick = () => selectCard(i, el);
+    grid.appendChild(el);
+  });
+  updateSlots();
+}
+
+function selectCard(i, el) {
+  if (el.classList.contains('selected') || el.classList.contains('disabled')) return;
+  if (selectedIndices.length >= 3) return;
+
+  playFlipSound();
+  selectedIndices.push(i);
+  selectedCards.push(shuffledDeck[i]);
+  el.classList.add('selected');
+  el.innerHTML = shuffledDeck[i].e;
+
+  updateSlots();
+  updateCounter();
+
+  if (selectedIndices.length === 3) {
+    document.querySelectorAll('.deck-card:not(.selected)').forEach(c => c.classList.add('disabled'));
+    document.getElementById('reveal-btn').classList.add('visible');
+  }
+}
+
+function updateSlots() {
+  const labels = ['Passato','Presente','Futuro'];
+  for (let i = 0; i < 3; i++) {
+    const slot = document.getElementById('slot-'+i);
+    if (selectedCards[i]) {
+      slot.classList.add('filled');
+      slot.innerHTML = `<span>${selectedCards[i].e}</span><span class="slot-label">${labels[i]}</span>`;
+    } else {
+      slot.classList.remove('filled');
+      slot.innerHTML = `<span>?</span><span class="slot-label">${labels[i]}</span>`;
+    }
+  }
+}
+
+function updateCounter() {
+  document.getElementById('deck-counter').textContent = `Carte selezionate: ${selectedCards.length} / 3`;
+}
+
+function revealCards() {
+  showPhase('phase-reading');
+  const container = document.getElementById('cards-container');
+  container.innerHTML = '';
+  const labels = ['Passato','Presente','Futuro'];
+
+  selectedCards.forEach((card, i) => {
+    const div = document.createElement('div');
+    div.className = 'card-slot';
+    const meaning = card.reversed ? card.rev : card.up;
+    div.innerHTML = `
+      <div class="card-pos">${labels[i]}</div>
+      <div style="font-size:28px;margin:6px 0">${card.e}</div>
+      <div class="card-name">${card.name}</div>
+      <div class="card-orientation">${card.reversed ? 'Rovesciata' : 'Dritta'}</div>
+      <div class="card-desc">${meaning.substring(0,120)}…</div>
+    `;
+    container.appendChild(div);
+
+    setTimeout(() => {
+      div.classList.add('visible');
+      playFlipSound();
+    }, i * 500);
+  });
+
+  setTimeout(() => {
+    document.getElementById('interpretation').style.display = 'block';
+    playMysticSound();
+    fetchInterpretation();
+  }, selectedCards.length * 500 + 400);
+}
+
+async function fetchInterpretation() {
+  const txt = document.getElementById('interpretation-text');
+  txt.innerHTML = '<em style="color:#999">Le stelle leggono le carte…</em>';
+
+  const labels = ['Passato','Presente','Futuro'];
+  const cardLines = selectedCards.map((c,i) =>
+    `${labels[i]}: ${c.name} (${c.reversed?'Rovesciata':'Dritta'}) — ${c.reversed?c.rev:c.up}`
+  ).join('\n\n');
+
+  const prompt = `Sei una cartomante esperta di tarocchi. Esegui una lettura combinata in italiano di queste tre carte:
+
+${cardLines}
+
+Scrivi circa 150 parole di prosa fluida che:
+- Colleghi narrativamente le tre carte
+- Mostri come il passato ha influenzato il presente e come il presente plasma il futuro
+- Evidenzi il filo energetico comune
+- Concluda con un messaggio chiave per chi legge
+Tono: mistico ma concreto. Nessun titolo o elenco, solo prosa.`;
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model:"claude-sonnet-4-20250514",
+        max_tokens:1000,
+        messages:[{role:"user",content:prompt}]
+      })
+    });
+    const data = await res.json();
+    const text = (data.content||[]).map(b=>b.text||'').join('');
+    txt.innerHTML = text || 'Impossibile generare la lettura. Riprova.';
+  } catch(e) {
+    txt.innerHTML = 'La lettura combinata è disponibile solo quando la pagina è pubblicata online.';
+  }
+}
+
+function resetAll() {
+  document.getElementById('interpretation').style.display = 'none';
+  document.getElementById('interpretation-text').innerHTML = '';
+  document.querySelector('.shuffle-btn').textContent = '🔀 Mescola le Carte';
+  document.querySelector('.shuffle-btn').disabled = false;
+  document.getElementById('reveal-btn').classList.remove('visible');
+  showPhase('phase-shuffle');
+}
+</script>
+</body>
+</html>
